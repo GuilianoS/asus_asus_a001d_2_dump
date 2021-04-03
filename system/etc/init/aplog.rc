@@ -1,0 +1,151 @@
+on post-fs-data
+    # add aplog dir
+    mkdir /data/local 0751 system system
+    mkdir /data/local/newlog 0771 system system
+    mkdir /data/local/newlog/aplog 0777 system system
+    mkdir /data/local/newlog/aplog/logcats 0777 system system
+    mkdir /data/local/newlog/aplog/bluetooth 0777 system system
+    mkdir /data/local/newlog/aplog/tcps 0777 system system
+    mkdir /data/local/newlog/aplog/dumpsys 0777 system system
+    mkdir /data/local/newlog/curlog 0777 system system
+    mkdir /data/local/newlog/curlog/dumpsys 0777 system system
+    mkdir /sdcard/log/mdlog 0777 system system
+    mkdir /persist/flag 0770 system system
+    # for modem log
+    chmod 666 /dev/diag
+
+    # for ap wakeup source log
+    write /sys/module/msm_show_resume_irq/parameters/debug_mask 1
+
+    #add ontim log
+    chown root shell system/etc/savelogs.sh
+    chmod 0777 system/etc/savelogs.sh
+
+    chown root shell system/etc/savelogs_dumpstate.sh
+    chmod 0777 system/etc/savelogs_dumpstate.sh
+
+    chown root shell system/etc/aplog.sh
+    chmod 0777 system/etc/aplog.sh
+
+    chown root shell system/etc/kernellog.sh
+    chmod 0777 system/etc/kernellog.sh
+
+    chown root shell system/etc/clean_aplog.sh
+    chmod 0777 system/etc/clean_aplog.sh
+
+    chown root shell system/etc/stop_aplog.sh
+    chmod 0777 system/etc/stop_aplog.sh
+
+    chown root shell system/etc/tar_aplog.sh
+    chmod 0777 system/etc/tar_aplog.sh
+
+    chown root shell system/etc/modemlog.sh
+    chmod 0777 vendor/bin/modemlog.sh
+
+#1 mainlog_big
+service mainlog_big system/bin/vendor_logcat -b main -b system -b crash -r 4096 -n 500 -v threadtime -f /data/local/newlog/aplog/logcats/logcat_
+    class main
+    user system
+    group system root log
+    disabled
+    oneshot
+
+#2 radiolog_big
+service radiolog_big system/bin/vendor_logcat -b radio -r 2048 -n 500 -v threadtime -f /data/local/newlog/aplog/logcats/radio_ "AT:S *:V"
+    class main
+    user system
+    group system root log
+    disabled
+    oneshot
+
+#3 eventslog_big
+service eventslog_big system/bin/vendor_logcat -b events -r 4096 -n 500 -v threadtime -f /data/local/newlog/aplog/logcats/events_ "AT:S *:V"
+    class main
+    user system
+    group system root log
+    disabled
+    oneshot
+
+#4 kernellog
+service kernellog system/etc/kernellog.sh
+    class main
+    disabled
+    oneshot
+    seclabel u:r:ontimlogs:s0
+
+#5 modemlog
+service modemlog system/etc/modemlog.sh
+    user shell
+    group system oem_2901 sdcard_rw sdcard_r media_rw
+    disabled
+    oneshot
+
+#5 tcp dump log
+#service dumptcp /vendor/bin/vendor_ndc iplog tcpdump start any /data/local/newlog/aplog/tcps/tcp
+#    user system
+#    group system
+#    oneshot
+#    disabled
+
+service dumptcp /vendor/bin/vendor_tcpdump -i any -s 200 -w /data/local/newlog/aplog/tcps/tcp -C 100 -W 5
+    user root
+    group system root log net_admin net_raw
+    oneshot
+    disabled
+
+service aplog_setup system/etc/aplog.sh
+    class late_start
+    oneshot
+
+service cleanaplog system/etc/clean_aplog.sh
+    user root
+    group root media_rw sdcard_rw system log net_admin net_raw vendor oem_2901
+    class main
+    disabled
+    oneshot
+
+service stopaplog system/etc/stop_aplog.sh
+    user root
+    group root media_rw sdcard_rw system log net_admin net_raw vendor oem_2901
+    class main
+    disabled
+    oneshot
+
+service taraplog system/etc/tar_aplog.sh
+    user root
+    group root media_rw sdcard_rw system log net_admin net_raw vendor oem_2901
+    class main
+    disabled
+    oneshot
+
+
+service savelogs /system/etc/savelogs.sh
+    user root
+    group root media_rw sdcard_rw system log net_admin net_raw vendor oem_2901
+    oneshot
+    disabled
+    seclabel u:r:ontimlogs:s0
+
+service savelogsdumps /system/etc/savelogs_dumpstate.sh
+    user root
+    group root media_rw sdcard_rw system log net_admin net_raw vendor oem_2901 shell
+    oneshot
+    disabled
+
+on property:persist.asus.savelogs=*
+    start savelogs
+
+on property:sys.asus.savelogs.dumpstate=1
+    start savelogsdumps
+
+on property:persist.asus.savelogs.source=*
+    start aplog_setup
+
+on property:sys.asus.savelogs.complete=1
+    start cleanaplog
+
+on property:sys.asus.tar.aplog=1
+    start taraplog
+
+on property:sys.asus.savelogs.local=5
+    start savelogs
