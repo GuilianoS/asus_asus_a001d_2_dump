@@ -1,0 +1,9 @@
+service calibration vendor/bin/sh vendor/bin/amp_calibration.sh
+    class late_start
+    disabled
+    user system root
+    group system audio root sdcard_rw sdcard_r media_rw shell
+    seclabel u:r:amp_calibration:s0
+
+on property:sys.climax_calib=1
+    start calibration
